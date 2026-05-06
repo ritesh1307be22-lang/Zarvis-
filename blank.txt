@@ -1,0 +1,138 @@
+import speech_recognition as sr
+import webbrowser
+import pyttsx3
+import musiclibrary
+import requests
+import time 
+#from openai import OpenAI
+from gtts import gTTS
+import pygame
+import os
+import requests
+r = sr.Recognizer()
+r.pause_threshold = 0.8
+def speak_old(text):
+    engine = pyttsx3.init()   # reinitialize every time
+    engine.setProperty('rate', 170)
+    engine.setProperty('volume', 1.0)
+    voices = engine.getProperty('voices')
+    engine.setProperty('voice', voices[0].id)
+    engine.say(text)
+    engine.runAndWait()
+    engine.stop()
+def speak(text):
+    tts = gTTS(text)
+    tts.save('temp.mp3')
+# Initialize mixer
+    pygame.mixer.init()
+# Load mp3 file
+    pygame.mixer.music.load("temp.mp3")   # put your mp3 file name here
+# Play music
+    pygame.mixer.music.play()
+# Keep program running while music plays
+    while pygame.mixer.music.get_busy():
+        pygame.time.Clock().tick(10)
+    pygame.mixer.music.unload()
+    os.remove("temp.mp3")
+
+newsapi = "pub_76def525ee164a3e9aa06b1222c47994"
+'''def aiProcess(command):
+    client = OpenAI( api_key="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",
+    )
+    completion = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": "You are a virtual assistant named Jarvis , give short responses"},
+            {"role": "user", "content": command}
+        ]
+    )
+    return completion.choices[0].message.content
+'''
+def aiProcess(command):
+    print("USING LOCAL PHI3 MODEL")
+    url = "http://localhost:11434/api/generate"
+    payload = {
+        "model": "phi3",
+        "prompt": command,
+        "stream": False
+    }
+    response = requests.post(url, json=payload)
+    result = response.json()
+    return result["response"]
+ 
+def processCommand(c):
+    if "open google" in c.lower():
+        webbrowser.open("https://google.com")
+    elif "open facebook" in c.lower():
+        webbrowser.open("https://facebook.com")
+    elif "open youtube" in c.lower():
+        webbrowser.open("https://youtube.com")
+    elif "open linkedin" in c.lower():
+        webbrowser.open("https://linkedin.com")
+    elif c.lower().startswith("play"):
+        song = c.lower().split(" ")[1]
+        link = musiclibrary.music[song]
+        webbrowser.open(link)
+    elif "news" in c.lower():
+        speak("Fetching latest news")
+        url = "https://newsdata.io/api/1/news"
+        params = {
+        "apikey": newsapi,
+        "country": "in",
+        "language": "en"
+        }
+        try:
+            rq = requests.get(url, params=params, timeout=5)
+            rq.raise_for_status()
+            data = rq.json()
+            articles = data.get("results", [])
+            if not articles:
+                speak("Sorry, no news found.")
+                return
+            for article in articles[:3]:
+                headline = article.get("title")
+                print(headline)
+                speak(headline)
+                #speak(headline)
+                time.sleep(2)
+        except Exception as e:
+            print("News Error:", e)
+            speak("Sorry, I could not fetch the news.")
+    else:
+        #let openAi handle the request
+        output = aiProcess(c)
+        speak(output)
+
+
+if __name__ == "__main__":
+    speak("Initializing Jarvis")
+    while True:
+        print("Recognizing...")
+        try:
+            with sr.Microphone() as source:
+                print("Listening...")
+                r.adjust_for_ambient_noise(source, duration=1)
+                audio = r.listen(source, timeout=5, phrase_time_limit=3)
+            word = r.recognize_google(audio)
+            print("You said:", word)
+
+            # Wake word detection (flexible)
+            if "jarvis" in word.lower():
+                print("Wake word detected")
+                time.sleep(0.7)
+                speak("Yes sir")
+                time.sleep(1)
+                #listen for comman
+                with sr.Microphone() as source:
+                    print("Jarvis active....")
+                    r.adjust_for_ambient_noise(source, duration=0.5)
+                    audio = r.listen(source, timeout=5, phrase_time_limit=5)
+                command = r.recognize_google(audio)
+                print("Command:", command)
+                time.sleep(0.7)
+                processCommand(command)
+                time.sleep(1.5)
+                
+                
+        except Exception as e:
+            print("Error:", e)
